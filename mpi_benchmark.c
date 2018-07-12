@@ -50,27 +50,27 @@ void parseArgs (int argc, char * argv[])
   }
 }
   
-float * generate ()
+double * generate ()
 {
   int rank, a, b, i, j;
-  float *array;
+  double *array;
 
   MPI_Comm_rank ( MPI_COMM_WORLD, &rank );
   srand ( time(NULL) + rank );
   a = -1000;
   b = 1000;
   
-  array = (float *) malloc (block_per_rank * block_dim *  sizeof (float));
+  array = (double *) malloc (block_per_rank * block_dim *  sizeof (double));
   
   for ( i = 0; i < block_per_rank; i++ )
     for ( j = 0;  j < block_dim;  j++ )
-      array [ i * block_dim + j ] =  ( b - a ) * ((float)rand() / RAND_MAX) + a;
+      array [ i * block_dim + j ] =  ( b - a ) * ((double)rand() / RAND_MAX) + a;
   
   return array;
 }
 
 
-void do_shift ( float *array, float *displacement )
+void do_shift ( double *array, double *displacement )
 {
   int i, j;
   
@@ -80,10 +80,10 @@ void do_shift ( float *array, float *displacement )
 }
 
 
-float do_average ( float *array )
+double do_average ( double *array )
 {
   int i, j;
-  float avg = 0.0;
+  double avg = 0.0;
   
   for ( i = 0; i < block_per_rank; i++ )
     for ( j = 0;  j < block_dim;  j++ )
@@ -93,15 +93,15 @@ float do_average ( float *array )
 }
 
 
-void do_reduce ( float average )
+void do_reduce ( double average )
 {
   int rank, nprocs;
-  float sum_average;
+  double sum_average;
   
   MPI_Comm_rank ( MPI_COMM_WORLD, &rank );
   MPI_Comm_size ( MPI_COMM_WORLD, &nprocs );
   
-  MPI_Reduce ( &average, &sum_average, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD );
+  MPI_Reduce ( &average, &sum_average, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD );
   
   if ( rank == 0 )
     sum_average /= nprocs;
@@ -116,8 +116,8 @@ int main( int argc, char **argv )
   double start_shift_time, end_shift_time, tot_shift_time, max_shift_time;
   double start_average_time, end_average_time, tot_average_time, max_average_time;
   double start_reduce_time, end_reduce_time, tot_reduce_time, max_reduce_time;
-  float *array, *displacement;
-  float average;
+  double *array, *displacement;
+  double average;
   MPI_File json_fh;
   MPI_Status status;
   char json_buf[8192];
@@ -131,9 +131,9 @@ int main( int argc, char **argv )
   block_per_rank = ( block_count * block_size * MEGA_MULTIPLIER ) / nprocs;
 
   srand ( time(NULL) + rank );
-  displacement = (float *) malloc ( block_dim * sizeof(float));
+  displacement = (double *) malloc ( block_dim * sizeof(double));
   for ( j = 0;  j < block_dim;  j++ )
-    displacement [j] = ((float)rand() / RAND_MAX) + 50;
+    displacement [j] = ((double)rand() / RAND_MAX) + 50;
 
   start_time = MPI_Wtime();
 
