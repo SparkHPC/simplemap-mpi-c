@@ -126,6 +126,9 @@ int main( int argc, char **argv )
   MPI_Comm_rank ( MPI_COMM_WORLD, &rank );
   MPI_Comm_size ( MPI_COMM_WORLD, &nprocs );
 
+  if ( rank == 0 )
+    fprintf ( stdout, "Communicator size = %d\n", nprocs);
+
   parseArgs ( argc, argv );
 
   block_per_rank = ( block_count * block_size * MEGA_MULTIPLIER ) / nprocs;
