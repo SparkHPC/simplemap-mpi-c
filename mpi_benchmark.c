@@ -7,9 +7,10 @@
 
 #define MEGA_MULTIPLIER    1048576 /* 1024 * 1024 */
 
+static int const block_dim = 3;
+static int  rank, nprocs;
 static int  block_count    = 16;
 static int  block_size     = 1;
-static int  block_dim      = 3;
 static int  block_per_rank = 1;
 static int  node_count     = 0;
 static int  core_count     = 0;
@@ -19,10 +20,8 @@ static char json[4096]     = "report.json";
 void parseArgs (int argc, char * argv[])
 {
   char flags[] = "b:k:j:n:c:";
-  int opt = 0, rank;
-  
-  MPI_Comm_rank ( MPI_COMM_WORLD, &rank );
-  
+  int opt = 0;
+    
   while ((opt = getopt (argc, argv, flags)) != -1) {
     switch ( opt ) {
     case('b'):
@@ -52,15 +51,15 @@ void parseArgs (int argc, char * argv[])
   
 double * generate ()
 {
-  int rank, a, b, i, j;
-  double *array;
+  size_t i, j;
+  double a, b;
+  double * restrict array;
 
-  MPI_Comm_rank ( MPI_COMM_WORLD, &rank );
   srand ( time(NULL) + rank );
   a = -1000;
   b = 1000;
   
-  array = (double *) malloc (block_per_rank * block_dim *  sizeof (double));
+  array = malloc (block_per_rank * block_dim *  sizeof (double));
   
   for ( i = 0; i < block_per_rank; i++ )
     for ( j = 0;  j < block_dim;  j++ )
@@ -70,9 +69,9 @@ double * generate ()
 }
 
 
-void do_shift ( double *array, double *displacement )
+void do_shift ( double * restrict array, const double * restrict displacement )
 {
-  int i, j;
+  size_t i, j;
   
   for ( i = 0; i < block_per_rank; i++ )
     for ( j = 0;  j < block_dim;  j++ )
@@ -80,44 +79,49 @@ void do_shift ( double *array, double *displacement )
 }
 
 
-double do_average ( double *array )
+void do_average ( double * restrict average, const double * restrict array )
 {
-  int i, j;
-  double avg = 0.0;
+  size_t i, j;
+  double size;
+
+  size = (double)block_per_rank;  
+
+  for ( j = 0; j < block_dim; j++ )
+    average[j] = 0.0;
   
   for ( i = 0; i < block_per_rank; i++ )
     for ( j = 0;  j < block_dim;  j++ )
-      avg += array [ i * block_dim + j ];
+      average[j] += array [ i * block_dim + j ];
 
-  return ( avg / (block_per_rank * block_dim) );  
+  for ( j = 0; j < block_dim; j++ )
+    average[j] /= size;
 }
 
 
-void do_reduce ( double average )
+void do_reduce ( double * restrict average )
 {
-  int rank, nprocs;
-  double sum_average;
+  size_t j;
+  double sum_average[block_dim];
   
-  MPI_Comm_rank ( MPI_COMM_WORLD, &rank );
-  MPI_Comm_size ( MPI_COMM_WORLD, &nprocs );
-  
-  MPI_Reduce ( &average, &sum_average, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD );
+  MPI_Reduce ( average, sum_average, block_dim, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD );
   
   if ( rank == 0 )
-    sum_average /= nprocs;
+    for ( j = 0; j < block_dim; j++ )
+      average[j] = sum_average[j] / nprocs;
 }
 
 
 int main( int argc, char **argv )
 {
-  int rank, nprocs, i, j;
+  size_t i, j;
   double start_time, end_time, tot_time, max_time;
   double start_generate_time, end_generate_time, tot_generate_time, max_generate_time;
   double start_shift_time, end_shift_time, tot_shift_time, max_shift_time;
   double start_average_time, end_average_time, tot_average_time, max_average_time;
   double start_reduce_time, end_reduce_time, tot_reduce_time, max_reduce_time;
-  double *array, *displacement;
-  double average;
+  double * restrict array;
+  double displacement[block_dim];
+  double average[block_dim];
   MPI_File json_fh;
   MPI_Status status;
   char json_buf[8192];
@@ -134,7 +138,6 @@ int main( int argc, char **argv )
   block_per_rank = ( block_count * block_size * MEGA_MULTIPLIER ) / nprocs;
 
   srand ( time(NULL) + rank );
-  displacement = (double *) malloc ( block_dim * sizeof(double));
   for ( j = 0;  j < block_dim;  j++ )
     displacement [j] = ((double)rand() / RAND_MAX) + 50;
 
@@ -149,7 +152,7 @@ int main( int argc, char **argv )
   end_shift_time = MPI_Wtime();
 
   start_average_time = MPI_Wtime();
-  average = do_average ( array );
+  do_average ( average, array );
   end_average_time = MPI_Wtime();
 
   start_reduce_time = MPI_Wtime();
@@ -157,6 +160,8 @@ int main( int argc, char **argv )
   end_reduce_time = MPI_Wtime();
 
   end_time = MPI_Wtime();
+
+  free(array);
 
   tot_generate_time = end_generate_time - start_generate_time;
   tot_shift_time    = end_shift_time - start_shift_time;
