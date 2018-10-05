@@ -1,7 +1,7 @@
-CC=mpicc
+CC?=mpicc
 EXEC=simplemap
 
-CFLAGS  += -DTHETA
+CFLAGS  += -O3 -std=gnu99 -Wall -Wextra
 LDFLAGS +=
 
 all: $(EXEC)
@@ -13,4 +13,4 @@ main.o: mpi_benchmark.c
 	$(CC) -g -o $@ -c $< $(CFLAGS)
 
 clean:
-	rm *.o *~ $(EXEC)
+	-rm -f *.o *~ $(EXEC)
