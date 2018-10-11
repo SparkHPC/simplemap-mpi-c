@@ -9,11 +9,11 @@
 
 static int const block_dim = 3;
 static int  rank, nprocs;
-static int  block_count    = 16;
-static int  block_size     = 1;
-static int  block_per_rank = 1;
-static int  node_count     = 0;
-static int  core_count     = 0;
+static size_t  block_count    = 16;
+static size_t  block_size     = 1;
+static size_t  block_per_rank = 1;
+static size_t  node_count     = 0;
+static size_t  core_count     = 0;
 static char json[4096]     = "report.json";
 
 
@@ -25,19 +25,19 @@ void parseArgs (int argc, char * argv[])
   while ((opt = getopt (argc, argv, flags)) != -1) {
     switch ( opt ) {
     case('b'):
-      sscanf ( optarg, "%d", &block_count );
+      sscanf ( optarg, "%ld", &block_count );
       break;
     case('k'):
-      sscanf ( optarg, "%d", &block_size );
+      sscanf ( optarg, "%ld", &block_size );
       break;
     case('j'):
       sprintf ( json, "%s", optarg );
       break;
     case('n'):
-      sscanf ( optarg, "%d", &node_count );
+      sscanf ( optarg, "%ld", &node_count );
       break;
     case('c'):
-      sscanf ( optarg, "%d", &core_count );
+      sscanf ( optarg, "%ld", &core_count );
       break;
     }
   }
@@ -59,7 +59,11 @@ double * generate ()
   a = -1000;
   b = 1000;
   
-  array = malloc (block_per_rank * block_dim *  sizeof (double));
+  if ( ! (array = malloc (block_per_rank * block_dim *  sizeof (double))) ) {
+    if ( rank == 0 )
+      fprintf ( stderr, "malloc failed for %ld blocks per rank!\n", block_per_rank );
+    MPI_Abort ( MPI_COMM_WORLD, -1 );
+  }
   
   for ( i = 0; i < block_per_rank; i++ )
     for ( j = 0;  j < block_dim;  j++ )
@@ -186,9 +190,9 @@ int main( int argc, char **argv )
     MPI_File_open( MPI_COMM_SELF, json, MPI_MODE_RDWR | MPI_MODE_CREATE, MPI_INFO_NULL, &json_fh );
 
     sprintf ( json_buf, "{\n\t\"args\": {\n" );
-    sprintf ( json_buf + strlen (json_buf), "\t\t\"block_size\": %d,\n\t\t\"block\": %d,\n", block_size, block_count );
-    sprintf ( json_buf + strlen (json_buf), "\t\t\"block_per_rank\": %d,\n", block_per_rank );
-    sprintf ( json_buf + strlen (json_buf), "\t\t\"cores\": %d,\n\t\t\"nodes\": %d\n\t},\n", core_count, node_count );
+    sprintf ( json_buf + strlen (json_buf), "\t\t\"block_size\": %ld,\n\t\t\"block\": %ld,\n", block_size, block_count );
+    sprintf ( json_buf + strlen (json_buf), "\t\t\"block_per_rank\": %ld,\n", block_per_rank );
+    sprintf ( json_buf + strlen (json_buf), "\t\t\"cores\": %ld,\n\t\t\"nodes\": %ld\n\t},\n", core_count, node_count );
     sprintf ( json_buf + strlen (json_buf), "\t\"performance\": {\n" );
     sprintf ( json_buf + strlen (json_buf), "\t\t\"generate\": %.8f,\n", max_generate_time );
     sprintf ( json_buf + strlen (json_buf), "\t\t\"shift\": %.8f,\n", max_shift_time );
